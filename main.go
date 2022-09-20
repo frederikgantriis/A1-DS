@@ -1,8 +1,13 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"math/rand"
+	"time"
+)
 
 func main() {
+	rand.Seed(time.Now().Unix())
 	var channels []chan bool
 	for i := 0; i < 10; i++ {
 		channels = append(channels, make(chan bool))
@@ -13,38 +18,61 @@ func main() {
 		// the calculations inside the brackets ensures that the correct channels
 		// are given to the correct philospher/fork eg: philosopher 0 gets
 		// fork 0*2=0 and 0*2+1=1
-		go philosopher(channels[i*2], channels[i*2+1])
-		go chopstick(channels[i*2+1], channels[i*2+2%10])
+		go fork(channels[i*2], channels[i*2+1])
 	}
+	for i := 0; i < 5; i++ {
+		go philosopher(i, channels[i*2], channels[i*2+1], channels[(i*2+2)%10], channels[(i*2+3)%10])
+	}
+
+	time.Sleep(10000 * time.Millisecond)
 }
 
-func philosopher(c1 chan bool, c2 chan bool) {
+func philosopher(i int, out1 chan<- bool, in1 <-chan bool, out2 chan<- bool, in2 <-chan bool) {
 	meals := 0
 
-	for meals < 2 {
-		// TODO: Implement philosopher function
-		result1 := <-c1
+	for {
+		if meals == 3 {
 
-		if result1 == true {
-			// TODO: Implement waiting timer for channel2
-			result2 := <-c2
-
-			if result2 == true {
-				fmt.Print("EATEN")
-				meals++
-				c1 <- true
-				c2 <- true
-			} else {
-				fmt.Print("THINKING")
-				c1 <- true
-			}
+			fmt.Printf("Philosopher %d Finished\n", i)
+			break
 		}
+		hasFork1 := <-in1
+		if hasFork1 {
+			out1 <- false
+			fmt.Printf("Philosopher %d has Fork %d\n", i, i)
+			hasFork2 := <-in2
 
+			if hasFork2 {
+				out2 <- false
+				fmt.Printf("Philosopher %d has Fork %d\n", i, i+1)
+				meals++
+				n := rand.Intn(100)
+				time.Sleep(time.Duration(n) * time.Millisecond)
+				fmt.Printf("Philosopher %d eating\n", i)
+				out1 <- true
+				fmt.Printf("Philosopher %d dropped Fork %d\n", i, i)
+				out2 <- true
+				fmt.Printf("Philosopher %d dropped Fork %d\n", i, i+1)
+			} else {
+				fmt.Printf("Philosopher %d dropped Fork %d\n", i, i)
+				out1 <- true
+				fmt.Printf("Philosopher %d thinking\n", i)
+				n := rand.Intn(100)
+				time.Sleep(time.Duration(n) * time.Millisecond)
+			}
+		} else {
+			fmt.Printf("Philosopher %d thinking\n", i)
+
+			n := rand.Intn(100)
+			time.Sleep(time.Duration(n) * time.Millisecond)
+		}
 	}
 }
 
-func chopstick(c1 chan bool, c2 chan bool) {
+func fork(in <-chan bool, out chan<- bool) {
+	out <- true
 	for {
-		// TODO: Implement chopstick function
+		temp := <-in
+		out <- temp
 	}
 }
