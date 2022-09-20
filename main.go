@@ -6,10 +6,13 @@ import (
 	"time"
 )
 
+// Deadlock doesn't occur since the philosophers check if both forks are
+// available before trying to eat and always puts the forks back after use
+
 func main() {
 	rand.Seed(time.Now().Unix())
 	var channels []chan bool
-	var finishedEating = make(chan bool)
+	var finishedEating = make(chan int)
 	for i := 0; i < 10; i++ {
 		channels = append(channels, make(chan bool, 1))
 	}
@@ -26,12 +29,11 @@ func main() {
 	}
 
 	for i := 0; i < 5; i++ {
-		<-finishedEating
-		fmt.Println("finished eating")
+		fmt.Printf("Philosopher %d has eaten three times\n", <-finishedEating)
 	}
 }
 
-func philosopher(i int, out1 chan bool, in1 chan bool, out2 chan bool, in2 chan bool, finishedEating chan bool) {
+func philosopher(i int, out1 chan bool, in1 chan bool, out2 chan bool, in2 chan bool, finishedEating chan int) {
 	meals := 0
 
 	for {
@@ -42,15 +44,16 @@ func philosopher(i int, out1 chan bool, in1 chan bool, out2 chan bool, in2 chan 
 
 		if hasFork2 && hasFork1 {
 			meals++
-			if meals == 3 {
-				finishedEating <- true
-			}
 			fmt.Printf("Philosopher %d eating\n", i)
 			<-in1
 			out1 <- true
 			<-in2
 			out2 <- true
 			time.Sleep(100 * time.Millisecond)
+			if meals == 3 {
+				finishedEating <- i
+				break
+			}
 		} else {
 			if hasFork1 {
 				<-in1
