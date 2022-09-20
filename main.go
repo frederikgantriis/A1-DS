@@ -9,8 +9,9 @@ import (
 func main() {
 	rand.Seed(time.Now().Unix())
 	var channels []chan bool
+	var finishedEating = make(chan bool)
 	for i := 0; i < 10; i++ {
-		channels = append(channels, make(chan bool))
+		channels = append(channels, make(chan bool, 1))
 	}
 
 	for i := 0; i < 5; i++ {
@@ -21,50 +22,46 @@ func main() {
 		go fork(channels[i*2], channels[i*2+1])
 	}
 	for i := 0; i < 5; i++ {
-		go philosopher(i, channels[i*2], channels[i*2+1], channels[(i*2+2)%10], channels[(i*2+3)%10])
+		go philosopher(i, channels[i*2], channels[i*2+1], channels[(i*2+2)%10], channels[(i*2+3)%10], finishedEating)
 	}
 
-	time.Sleep(10000 * time.Millisecond)
+	for i := 0; i < 5; i++ {
+		<-finishedEating
+		fmt.Println("finished eating")
+	}
 }
 
-func philosopher(i int, out1 chan<- bool, in1 <-chan bool, out2 chan<- bool, in2 <-chan bool) {
+func philosopher(i int, out1 chan bool, in1 chan bool, out2 chan bool, in2 chan bool, finishedEating chan bool) {
 	meals := 0
 
 	for {
-		if meals == 3 {
-
-			fmt.Printf("Philosopher %d Finished\n", i)
-			break
-		}
 		hasFork1 := <-in1
-		if hasFork1 {
-			out1 <- false
-			fmt.Printf("Philosopher %d has Fork %d\n", i, i)
-			hasFork2 := <-in2
+		out1 <- false
+		hasFork2 := <-in2
+		out2 <- false
 
-			if hasFork2 {
-				out2 <- false
-				fmt.Printf("Philosopher %d has Fork %d\n", i, i+1)
-				meals++
-				n := rand.Intn(100)
-				time.Sleep(time.Duration(n) * time.Millisecond)
-				fmt.Printf("Philosopher %d eating\n", i)
-				out1 <- true
-				fmt.Printf("Philosopher %d dropped Fork %d\n", i, i)
-				out2 <- true
-				fmt.Printf("Philosopher %d dropped Fork %d\n", i, i+1)
-			} else {
-				fmt.Printf("Philosopher %d dropped Fork %d\n", i, i)
-				out1 <- true
-				fmt.Printf("Philosopher %d thinking\n", i)
-				n := rand.Intn(100)
-				time.Sleep(time.Duration(n) * time.Millisecond)
+		if hasFork2 && hasFork1 {
+			meals++
+			if meals == 3 {
+				finishedEating <- true
 			}
+			fmt.Printf("Philosopher %d eating\n", i)
+			<-in1
+			out1 <- true
+			<-in2
+			out2 <- true
+			time.Sleep(100 * time.Millisecond)
 		} else {
+			if hasFork1 {
+				<-in1
+				out1 <- true
+			}
+			if hasFork2 {
+				<-in2
+				out2 <- true
+			}
 			fmt.Printf("Philosopher %d thinking\n", i)
-
-			n := rand.Intn(100)
-			time.Sleep(time.Duration(n) * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
 }
